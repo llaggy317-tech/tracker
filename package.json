@@ -1,0 +1,17 @@
+{
+  "name": "indiapost-bulk-tracker",
+  "version": "1.0.0",
+  "description": "Bulk India Post consignment tracker",
+  "author": "CII",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "pdfkit": "^0.19.1",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
+  }
+}
