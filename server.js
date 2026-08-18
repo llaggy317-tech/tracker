@@ -53,6 +53,55 @@ const CAPTCHA_GEN_ACTION = process.env.CAPTCHA_GEN_ACTION || '7f3ab4e2b026889d67
 const CAPTCHA_AUDIO_ACTION = process.env.CAPTCHA_AUDIO_ACTION || '7f3b58085d563af7aec60a32f403a47c1b2160a8ed';
 const INDIA_POST_HOST = 'www.indiapost.gov.in';
 
+// ─── CII Access Control & Session Management (5 Exclusive User Keys) ────────
+const crypto = require('crypto');
+const AUTH_FILE = path.join(__dirname, 'history', 'auth_sessions.json');
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// Default pool of 5 exclusive passwords (can also be customized via AUTH_KEYS env var)
+const ALLOWED_PASSWORDS = (process.env.AUTH_KEYS
+  ? process.env.AUTH_KEYS.split(',').map(s => s.trim()).filter(Boolean)
+  : [
+      'CII-ALPHA-7821',
+      'CII-BRAVO-9430',
+      'CII-CHARLIE-5164',
+      'CII-DELTA-8295',
+      'CII-ECHO-3902'
+    ]
+);
+
+function loadAuthSessions() {
+  try {
+    if (fs.existsSync(AUTH_FILE)) {
+      return JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+    }
+  } catch (_) {}
+  return {};
+}
+
+function saveAuthSessions(sessions) {
+  try {
+    const dir = path.dirname(AUTH_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(AUTH_FILE, JSON.stringify(sessions, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('⚠️ Could not save auth sessions:', err.message);
+  }
+}
+
+function cleanExpiredSessions(sessions) {
+  const now = Date.now();
+  let changed = false;
+  for (const [token, info] of Object.entries(sessions)) {
+    if (!info.expiresAt || info.expiresAt < now) {
+      delete sessions[token];
+      changed = true;
+    }
+  }
+  if (changed) saveAuthSessions(sessions);
+  return sessions;
+}
+
 // ─── Helper: raw HTTPS POST ──────────────────────────────────────────────────
 function postReq(hostname, path, headers, body, timeoutMs = 12000) {
   return new Promise((resolve) => {
@@ -783,6 +832,109 @@ app.delete('/api/history', (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ─── CII Auth API Endpoints (5-User Exclusive Session Controller) ───────────
+
+// GET /api/auth/status — get available user slots
+app.get('/api/auth/status', (req, res) => {
+  const sessions = cleanExpiredSessions(loadAuthSessions());
+  const activeKeys = new Set(Object.values(sessions).map(s => s.password));
+  const totalSlots = ALLOWED_PASSWORDS.length;
+  res.json({
+    success: true,
+    totalSlots,
+    activeUsersCount: activeKeys.size,
+    availableSlots: Math.max(0, totalSlots - activeKeys.size),
+  });
+});
+
+// POST /api/auth/login — authenticate with one of the 5 keys
+app.post('/api/auth/login', (req, res) => {
+  const { password, clientToken } = req.body || {};
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({ success: false, error: 'Password is required' });
+  }
+
+  const cleanPass = password.trim();
+  if (!ALLOWED_PASSWORDS.includes(cleanPass)) {
+    return res.status(401).json({ success: false, error: 'Invalid access key.' });
+  }
+
+  const sessions = cleanExpiredSessions(loadAuthSessions());
+  const now = Date.now();
+
+  // Check if this password is held by another active clientToken
+  let existingHolderToken = null;
+  for (const [tok, info] of Object.entries(sessions)) {
+    if (info.password === cleanPass && info.expiresAt > now) {
+      existingHolderToken = tok;
+      break;
+    }
+  }
+
+  // If clientToken matches existing holder, refresh lease
+  if (existingHolderToken && clientToken && existingHolderToken === clientToken) {
+    sessions[clientToken].expiresAt = now + SESSION_DURATION_MS;
+    saveAuthSessions(sessions);
+    return res.json({
+      success: true,
+      token: clientToken,
+      expiresAt: sessions[clientToken].expiresAt,
+      message: 'Session resumed (7 days).'
+    });
+  }
+
+  // If password is already in use by a different active user
+  if (existingHolderToken && existingHolderToken !== clientToken) {
+    return res.status(403).json({
+      success: false,
+      error: 'This access key is currently in use by another active user. Please use an unused access key.'
+    });
+  }
+
+  // Claim the password for a new token
+  const token = crypto.randomBytes(24).toString('hex');
+  sessions[token] = {
+    password: cleanPass,
+    claimedAt: now,
+    expiresAt: now + SESSION_DURATION_MS
+  };
+  saveAuthSessions(sessions);
+
+  const activeKeys = new Set(Object.values(sessions).map(s => s.password));
+  return res.json({
+    success: true,
+    token,
+    expiresAt: sessions[token].expiresAt,
+    remainingSlots: Math.max(0, ALLOWED_PASSWORDS.length - activeKeys.size),
+    message: 'Access granted (valid for 7 days).'
+  });
+});
+
+// POST /api/auth/verify — check if stored token is active
+app.post('/api/auth/verify', (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.json({ valid: false });
+  const sessions = cleanExpiredSessions(loadAuthSessions());
+  const info = sessions[token];
+  if (info && info.expiresAt > Date.now()) {
+    return res.json({ valid: true, expiresAt: info.expiresAt });
+  }
+  return res.json({ valid: false });
+});
+
+// POST /api/auth/logout — release the access key
+app.post('/api/auth/logout', (req, res) => {
+  const { token } = req.body || {};
+  if (token) {
+    const sessions = loadAuthSessions();
+    if (sessions[token]) {
+      delete sessions[token];
+      saveAuthSessions(sessions);
+    }
+  }
+  return res.json({ success: true });
 });
 
 // ─── Serve the frontend ───────────────────────────────────────────────────────

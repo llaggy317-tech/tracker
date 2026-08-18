@@ -1369,6 +1369,106 @@
       box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.25);
     }
 
+    /* ── AUTH LOCK MODAL & GLASSMORPHIC BLUR ── */
+    .auth-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 13, 18, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .auth-modal-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .auth-card {
+      background: linear-gradient(145deg, #151b2c 0%, #1a2238 100%);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 2.2rem 2rem;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(79, 142, 247, 0.1);
+      animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .auth-icon {
+      font-size: 2.6rem;
+      margin-bottom: 0.75rem;
+      display: inline-block;
+      filter: drop-shadow(0 4px 12px rgba(79, 142, 247, 0.4));
+    }
+
+    .auth-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+
+    .auth-subtitle {
+      font-size: 0.82rem;
+      color: var(--text2);
+      margin-bottom: 1.4rem;
+      line-height: 1.5;
+    }
+
+    .auth-input-wrap {
+      margin-bottom: 1rem;
+      position: relative;
+    }
+
+    .auth-input {
+      width: 100%;
+      background: var(--bg2);
+      border: 1.5px solid var(--border2);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 1.5px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .auth-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.25);
+    }
+
+    .auth-error {
+      color: var(--red);
+      font-size: 0.78rem;
+      margin-top: 8px;
+      min-height: 18px;
+      font-weight: 500;
+    }
+
+    .auth-footer-info {
+      font-size: 0.72rem;
+      color: var(--text3);
+      margin-top: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      padding-top: 0.85rem;
+    }
+
     /* ── HISTORY MODAL & CARDS ── */
     .history-modal-overlay {
       position: fixed;
@@ -1578,6 +1678,42 @@
 </head>
 
 <body>
+
+  <!-- AUTH LOCK OVERLAY (5-User Exclusive Access Controller) -->
+  <div class="auth-modal-overlay" id="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-icon">🔒</div>
+      <div class="auth-title">CII Logistics Tracker</div>
+      <div class="auth-subtitle">
+        Enter your designated access key to unlock the tracking engine.<br/>
+        <span style="color:var(--accent);font-size:0.75rem;margin-top:4px;display:inline-block;">⚡ 1 Device per Key • Valid for 7 Days</span>
+      </div>
+
+      <div class="auth-input-wrap">
+        <input
+          type="password"
+          id="auth-key-input"
+          class="auth-input"
+          placeholder="Enter Access Key (e.g. CII-XXXX-0000)"
+          autocomplete="current-password"
+          spellcheck="false"
+          onkeydown="if(event.key==='Enter') submitAuthKey()"
+        />
+        <div id="auth-error-msg" class="auth-error"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:1rem;">
+        <button class="btn btn-primary" id="btn-auth-unlock" onclick="submitAuthKey()" style="width:100%;padding:12px 20px;font-size:0.95rem;justify-content:center;">
+          <span>🔓</span> Unlock Tracking System
+        </button>
+      </div>
+
+      <div class="auth-footer-info">
+        <span id="auth-slots-badge">Checking active slots…</span>
+        <span style="color:var(--text3);">System Protected</span>
+      </div>
+    </div>
+  </div>
 
   <!-- HEADER -->
   <header class="header">
@@ -2069,6 +2205,111 @@
   <script>
     // ─── CII CORE STATE & TRACKING CONTROLLER ──────────────────────────────────────
     const API = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:3001';
+
+    // ─── AUTH & 7-DAY EXCLUSIVE SESSION CONTROLLER ────────────────────────────────
+    let authClientToken = localStorage.getItem('cii_auth_token') || null;
+
+    async function checkAuthSession() {
+      const overlay = document.getElementById('auth-overlay');
+      const input = document.getElementById('auth-key-input');
+
+      if (authClientToken) {
+        try {
+          const r = await fetch(`${API}/api/auth/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: authClientToken })
+          });
+          const data = await r.json();
+          if (data && data.valid) {
+            if (overlay) overlay.classList.add('hidden');
+            return;
+          }
+        } catch (e) {
+          const exp = parseInt(localStorage.getItem('cii_auth_expires') || '0', 10);
+          if (exp > Date.now()) {
+            if (overlay) overlay.classList.add('hidden');
+            return;
+          }
+        }
+      }
+
+      if (overlay) overlay.classList.remove('hidden');
+      if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 150);
+      }
+      updateAuthSlotsBadge();
+    }
+
+    async function updateAuthSlotsBadge() {
+      const slotsEl = document.getElementById('auth-slots-badge');
+      if (!slotsEl) return;
+      try {
+        const r = await fetch(`${API}/api/auth/status`);
+        const data = await r.json();
+        if (data && data.success) {
+          slotsEl.textContent = `🟢 ${data.availableSlots} of ${data.totalSlots} access keys available`;
+          if (data.availableSlots === 0) {
+            slotsEl.textContent = `🔴 All 5 user keys currently in use`;
+          }
+        }
+      } catch (_) {
+        slotsEl.textContent = `⚡ 5 User License Protection`;
+      }
+    }
+
+    async function submitAuthKey() {
+      const input = document.getElementById('auth-key-input');
+      const errorEl = document.getElementById('auth-error-msg');
+      const btn = document.getElementById('btn-auth-unlock');
+      const overlay = document.getElementById('auth-overlay');
+
+      const pass = (input ? input.value : '').trim();
+      if (!pass) {
+        if (errorEl) errorEl.textContent = 'Please enter an access key.';
+        if (input) input.focus();
+        return;
+      }
+
+      if (errorEl) errorEl.textContent = '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> Verifying Key…';
+      }
+
+      try {
+        const r = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass, clientToken: authClientToken })
+        });
+        const data = await r.json();
+
+        if (data && data.success) {
+          authClientToken = data.token;
+          localStorage.setItem('cii_auth_token', data.token);
+          localStorage.setItem('cii_auth_expires', data.expiresAt);
+
+          if (overlay) overlay.classList.add('hidden');
+          log('Access key verified. Session unlocked for 7 days.', 'ok');
+        } else {
+          if (errorEl) {
+            errorEl.textContent = data.error || 'Invalid or already claimed access key.';
+          }
+          if (input) input.select();
+        }
+      } catch (err) {
+        if (errorEl) errorEl.textContent = 'Connection error. Please try again.';
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔓</span> Unlock Tracking System';
+        }
+        updateAuthSlotsBadge();
+      }
+    }
+
     let allIds = [];
     let results = [];
     let currentIdx = 0;
@@ -3815,7 +4056,8 @@
       }
     });
 
-    // Initial history fetch
+    // Initial auth & history check
+    checkAuthSession();
     loadHistory();
   </script>
 </body>
