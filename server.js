@@ -487,6 +487,11 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer, userMarker
   };
 }
 
+// ─── GET /api/health — lightweight server ping ──────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({ success: true, status: 'ok' });
+});
+
 // ─── GET /api/token — fetch a fresh session token ───────────────────────────
 app.get('/api/token', async (req, res) => {
   const userMarker = getUserMarker(req);

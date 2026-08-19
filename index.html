@@ -2853,16 +2853,14 @@
     // ─── SERVER HEALTH CHECK ──────────────────────────────────────────────────────
     async function checkServer() {
       try {
-        const r = await fetch(`${API}/api/token`, { signal: AbortSignal.timeout(4000) });
+        const r = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(4000) });
         if (r.ok) {
-          const data = await r.json();
           document.getElementById('server-dot').classList.add('connected');
-          if (data.provider === 'myspeedpost' || selectedEngine === 'myspeedpost') {
+          if (selectedEngine === 'myspeedpost') {
             document.getElementById('server-status-text').innerHTML = '🚀 <strong style="color:var(--green)">MySpeedPost Active</strong>';
           } else {
             document.getElementById('server-status-text').textContent = 'Server Online';
           }
-          if (data.token) token = data.token;
         }
       } catch {
         document.getElementById('server-dot').classList.remove('connected');
