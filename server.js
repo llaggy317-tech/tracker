@@ -102,6 +102,30 @@ function cleanExpiredSessions(sessions) {
   return sessions;
 }
 
+// ─── Helper: Get user marker for dashboard logging (Alpha, Bravo, Charlie, etc.)
+function getUserMarker(req) {
+  try {
+    const token = req?.headers?.['x-auth-token'] || 
+                  (req?.headers?.['authorization'] ? req.headers['authorization'].replace(/^Bearer\s+/i, '') : null) || 
+                  req?.body?.clientToken || 
+                  req?.query?.token;
+    if (!token) return '[ANON]';
+    const sessions = loadAuthSessions();
+    const session = sessions[token];
+    if (!session || !session.password) return '[GUEST]';
+
+    const pass = String(session.password).trim().toUpperCase();
+    const match = pass.match(/(ALPHA|BRAVO|CHARLIE|DELTA|ECHO)/i);
+    if (match) {
+      return `[${match[1].toUpperCase()}]`;
+    }
+    const clean = pass.replace(/^CII[-_]?/i, '');
+    return `[${clean.slice(0, 12)}]`;
+  } catch (_) {
+    return '[USER]';
+  }
+}
+
 // ─── Helper: raw HTTPS POST ──────────────────────────────────────────────────
 function postReq(hostname, path, headers, body, timeoutMs = 12000) {
   return new Promise((resolve) => {
@@ -195,8 +219,9 @@ function solveCaptchaLocal(imageBase64) {
 }
 
 // ─── Helper: Auto-fetch and solve a fresh CAPTCHA ───────────────────────────
-async function getAutoSolvedCaptcha(maxTries = 4, articleId = '') {
-  const prefix = articleId ? `[Track ${articleId}] ` : '[CAPTCHA] ';
+async function getAutoSolvedCaptcha(maxTries = 4, articleId = '', userMarker = '') {
+  const markerPrefix = userMarker ? `${userMarker} ` : '';
+  const prefix = articleId ? `${markerPrefix}[Track ${articleId}] ` : `${markerPrefix}[CAPTCHA] `;
   for (let tryNum = 0; tryNum < maxTries; tryNum++) {
     if (tryNum > 0) await new Promise((r) => setTimeout(r, 300));
     const result = await postReq(
@@ -268,18 +293,19 @@ function parseRscLine(body) {
 
 
 // ─── CII Engine: India Post Official API Tracking Pipeline ────────────────────
-async function trackViaIndiaPost(articleId, token, captchaId, answer) {
+async function trackViaIndiaPost(articleId, token, captchaId, answer, userMarker = '') {
   let curCaptchaId = captchaId;
   let curAnswer = answer;
   let parsed = null;
   let lastResult = null;
   let attempts = 0;
   const maxAttempts = (captchaId && answer) ? 1 : 3;
+  const markerPrefix = userMarker ? `${userMarker} ` : '';
 
   while (attempts < maxAttempts) {
     attempts++;
     if (!curCaptchaId || !curAnswer) {
-      const auto = await getAutoSolvedCaptcha(4, articleId);
+      const auto = await getAutoSolvedCaptcha(4, articleId, userMarker);
       if (!auto) {
         if (attempts < maxAttempts) {
           await new Promise((r) => setTimeout(r, 400));
@@ -291,7 +317,7 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer) {
       curAnswer = auto.answer;
     }
 
-    console.log(`[Track ${articleId}] Posting track request...`);
+    console.log(`${markerPrefix}[Track ${articleId}] Posting track request...`);
     const payload = [token, articleId, { captchaId: curCaptchaId, answer: curAnswer }];
     const result = await postReq(
       INDIA_POST_HOST,
@@ -303,7 +329,7 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer) {
 
     lastResult = result;
     if (!result || result.status !== 200) {
-      console.log(`[Track ${articleId}] Track request HTTP ${result?.status || 0} / error: ${result?.error || 'timeout/network'}`);
+      console.log(`${markerPrefix}[Track ${articleId}] Track request HTTP ${result?.status || 0} / error: ${result?.error || 'timeout/network'}`);
       curCaptchaId = null;
       curAnswer = null;
       await new Promise((r) => setTimeout(r, 300));
@@ -315,7 +341,7 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer) {
     // Detect session expired
     if (!parsed) {
       if (result.body && (result.body.includes('session_expired') || result.body.includes('SESSION_EXPIRED'))) {
-        console.log(`[Track ${articleId}] Session expired`);
+        console.log(`${markerPrefix}[Track ${articleId}] Session expired`);
         return {
           success: false,
           articleId,
@@ -335,7 +361,7 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer) {
     }
 
     if (parsed && (parsed.error === 'captcha_failed' || parsed.error === 'backend_error' || parsed.error === 'captcha_required')) {
-      console.log(`[Track ${articleId}] Captcha verification failed (${parsed.error}), retrying...`);
+      console.log(`${markerPrefix}[Track ${articleId}] Captcha verification failed (${parsed.error}), retrying...`);
       curCaptchaId = null;
       curAnswer = null;
       await new Promise((r) => setTimeout(r, 350));
@@ -463,6 +489,7 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer) {
 
 // ─── GET /api/token — fetch a fresh session token ───────────────────────────
 app.get('/api/token', async (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     for (let t = 0; t < 3; t++) {
       if (t > 0) await new Promise((r) => setTimeout(r, 500));
@@ -478,17 +505,21 @@ app.get('/api/token', async (req, res) => {
 
       const token = parseRscLine(result.body);
       if (token) {
+        console.log(`${userMarker} [TOKEN] Obtained new India Post session token`);
         return res.json({ success: true, token, provider: 'indiapost' });
       }
     }
+    console.log(`${userMarker} [TOKEN] Could not fetch token from India Post official server`);
     return res.json({ success: false, error: 'Could not fetch token from India Post official server' });
   } catch (e) {
+    console.log(`${userMarker} [TOKEN] Error: ${e.message}`);
     return res.json({ success: false, error: e.message });
   }
 });
 
 // ─── GET /api/captcha — fetch a fresh captcha image and audio ───────────────
 app.get('/api/captcha', async (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     const result = await postReq(
       INDIA_POST_HOST,
@@ -499,6 +530,7 @@ app.get('/api/captcha', async (req, res) => {
     );
 
     if (!result || result.status !== 200) {
+      console.log(`${userMarker} [CAPTCHA] Service error: HTTP ${result?.status || 0}`);
       return res.json({
         success: false,
         error: `Captcha service error: HTTP ${result?.status || 0}`
@@ -517,6 +549,7 @@ app.get('/api/captcha', async (req, res) => {
     }
 
     if (!idMatch || !image) {
+      console.log(`${userMarker} [CAPTCHA] Could not parse captcha`);
       return res.json({ success: false, error: 'Could not parse captcha from response' });
     }
 
@@ -527,12 +560,14 @@ app.get('/api/captcha', async (req, res) => {
       audio: null
     });
   } catch (e) {
+    console.log(`${userMarker} [CAPTCHA] Error: ${e.message}`);
     return res.json({ success: false, error: e.message });
   }
 });
 
 // ─── POST /api/track — track a single consignment ───────────────────────────
 app.post('/api/track', async (req, res) => {
+  const userMarker = getUserMarker(req);
   const { token, articleId, captchaId, answer, source = 'indiapost' } = req.body;
 
   if (!articleId) {
@@ -545,8 +580,10 @@ app.post('/api/track', async (req, res) => {
   if (source === 'myspeedpost') {
     try {
       const result = await mySpeedPostClient.track(cleanId);
+      console.log(`${userMarker} [TRACK] (MySpeedPost) ${cleanId} → ${result?.delivery_status || (result?.success ? 'Success' : 'Not Found')}`);
       return res.json(result);
     } catch (e) {
+      console.log(`${userMarker} [TRACK] (MySpeedPost) ${cleanId} → Error: ${e.message}`);
       return res.json({ success: false, articleId: cleanId, error: e.message, source: 'myspeedpost.com' });
     }
   }
@@ -555,8 +592,10 @@ app.post('/api/track', async (req, res) => {
   if (source === 'speedpostlive') {
     try {
       const result = await speedPostLiveClient.track(cleanId);
+      console.log(`${userMarker} [TRACK] (SpeedPostLive) ${cleanId} → ${result?.delivery_status || (result?.success ? 'Success' : 'Failed')}`);
       return res.json(result);
     } catch (e) {
+      console.log(`${userMarker} [TRACK] (SpeedPostLive) ${cleanId} → Error: ${e.message}`);
       return res.json({ success: false, articleId: cleanId, error: e.message, source: 'speedpostlive.com' });
     }
   }
@@ -567,9 +606,11 @@ app.post('/api/track', async (req, res) => {
       return res.json({ success: false, articleId: cleanId, error: 'Missing India Post session token' });
     }
     try {
-      const result = await trackViaIndiaPost(cleanId, token, captchaId, answer);
+      const result = await trackViaIndiaPost(cleanId, token, captchaId, answer, userMarker);
+      console.log(`${userMarker} [TRACK] (IndiaPost) ${cleanId} → ${result?.delivery_status || (result?.success ? 'Success' : result?.api_error || 'Failed')}`);
       return res.json(result);
     } catch (e) {
+      console.log(`${userMarker} [TRACK] (IndiaPost) ${cleanId} → Error: ${e.message}`);
       return res.json({ success: false, articleId: cleanId, error: e.message, source: 'indiapost.gov.in' });
     }
   }
@@ -578,7 +619,7 @@ app.post('/api/track', async (req, res) => {
   try {
     const result = await mySpeedPostClient.track(cleanId);
     if (result && (result.success || result.notFound)) {
-      console.log(`[TRACK] (Auto:MySpeedPost) ${cleanId} → ${result.delivery_status || 'OK'}`);
+      console.log(`${userMarker} [TRACK] (Auto:MySpeedPost) ${cleanId} → ${result.delivery_status || 'OK'}`);
       return res.json(result);
     }
   } catch (err) { }
@@ -586,19 +627,22 @@ app.post('/api/track', async (req, res) => {
   try {
     const spResult = await speedPostLiveClient.track(cleanId);
     if (spResult && spResult.success) {
+      console.log(`${userMarker} [TRACK] (Auto:SpeedPostLive) ${cleanId} → ${spResult.delivery_status || 'OK'}`);
       return res.json(spResult);
     }
   } catch (err) { }
 
   if (token && token !== 'myspeedpost_active') {
     try {
-      const ipResult = await trackViaIndiaPost(cleanId, token, captchaId, answer);
+      const ipResult = await trackViaIndiaPost(cleanId, token, captchaId, answer, userMarker);
+      console.log(`${userMarker} [TRACK] (Auto:IndiaPost) ${cleanId} → ${ipResult.delivery_status || (ipResult.success ? 'Success' : ipResult.api_error || 'Failed')}`);
       return res.json(ipResult);
     } catch (e) {
       return res.json({ success: false, articleId: cleanId, error: e.message });
     }
   }
 
+  console.log(`${userMarker} [TRACK] ${cleanId} → Failed on all providers`);
   return res.json({ success: false, articleId: cleanId, error: 'Could not track consignment via available providers' });
 });
 
@@ -606,10 +650,13 @@ app.post('/api/track', async (req, res) => {
 
 // ─── POST /api/export — export results to Excel ──────────────────────────────
 app.post('/api/export', (req, res) => {
+  const userMarker = getUserMarker(req);
   const { results } = req.body;
   if (!results || !Array.isArray(results)) {
     return res.status(400).json({ error: 'No results provided' });
   }
+
+  console.log(`${userMarker} [EXPORT] Exporting ${results.length} consignments to Excel (Raw Data)`);
 
   const rows = results.map((r) => ({
     requested_article_number: r.articleId,
@@ -652,10 +699,13 @@ app.post('/api/export', (req, res) => {
 
 // ─── POST /api/export-clean — export selected columns only ───────────────────
 app.post('/api/export-clean', (req, res) => {
+  const userMarker = getUserMarker(req);
   const { rows } = req.body;
   if (!rows || !Array.isArray(rows)) {
     return res.status(400).json({ error: 'No rows provided' });
   }
+
+  console.log(`${userMarker} [EXPORT] Exporting ${rows.length} consignments to Excel (Clean View)`);
 
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -671,10 +721,13 @@ app.post('/api/export-clean', (req, res) => {
 
 // ─── POST /api/export-pdf — export results to PDF ───────────────────────────
 app.post('/api/export-pdf', async (req, res) => {
+  const userMarker = getUserMarker(req);
   const { results, format } = req.body;
   if (!results || !Array.isArray(results)) {
     return res.status(400).json({ error: 'No results provided' });
   }
+
+  console.log(`${userMarker} [EXPORT] Exporting ${results.length} consignments to PDF (Format: ${format || 'list'})`);
 
   try {
     const pdfBuf = await generateTrackingPdf(results, format || 'list');
@@ -684,7 +737,7 @@ app.post('/api/export-pdf', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.send(pdfBuf);
   } catch (err) {
-    console.error('PDF export error:', err);
+    console.error(`${userMarker} [EXPORT] PDF export error:`, err);
     res.status(500).json({ error: 'Failed to generate PDF: ' + err.message });
   }
 });
@@ -697,6 +750,7 @@ if (!fs.existsSync(HISTORY_DIR)) {
 
 // GET /api/history — list all saved tracking sessions (metadata only)
 app.get('/api/history', (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     const files = fs.readdirSync(HISTORY_DIR).filter(f => f.endsWith('.json'));
     const sessions = [];
@@ -732,6 +786,7 @@ app.get('/api/history', (req, res) => {
 
 // GET /api/history/:id — get full session data
 app.get('/api/history/:id', (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     const { id } = req.params;
     const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -742,6 +797,7 @@ app.get('/api/history/:id', (req, res) => {
     }
 
     const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    console.log(`${userMarker} [HISTORY] Loaded session "${data.name || safeId}"`);
     res.json({ success: true, session: data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -750,6 +806,7 @@ app.get('/api/history/:id', (req, res) => {
 
 // POST /api/history — save a new tracking session
 app.post('/api/history', (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     const { id, name, trackType, rangeDetails, allIds, results, stats } = req.body;
     if (!results || !Array.isArray(results) || results.length === 0) {
@@ -799,6 +856,7 @@ app.post('/api/history', (req, res) => {
     const filePath = path.join(HISTORY_DIR, `${sessionId}.json`);
     fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2), 'utf8');
 
+    console.log(`${userMarker} [HISTORY] Saved tracking session "${sessionName}" (${totalCount} items)`);
     res.json({ success: true, session: sessionData });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -807,6 +865,7 @@ app.post('/api/history', (req, res) => {
 
 // DELETE /api/history/:id — delete a specific session
 app.delete('/api/history/:id', (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     const { id } = req.params;
     const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -815,6 +874,7 @@ app.delete('/api/history/:id', (req, res) => {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
+    console.log(`${userMarker} [HISTORY] Deleted session ${safeId}`);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -823,11 +883,13 @@ app.delete('/api/history/:id', (req, res) => {
 
 // DELETE /api/history — clear all history
 app.delete('/api/history', (req, res) => {
+  const userMarker = getUserMarker(req);
   try {
     const files = fs.readdirSync(HISTORY_DIR).filter(f => f.endsWith('.json'));
     for (const f of files) {
       fs.unlinkSync(path.join(HISTORY_DIR, f));
     }
+    console.log(`${userMarker} [HISTORY] Cleared all history (${files.length} sessions deleted)`);
     res.json({ success: true, count: files.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -858,8 +920,12 @@ app.post('/api/auth/login', (req, res) => {
 
   const cleanPass = password.trim();
   if (!ALLOWED_PASSWORDS.includes(cleanPass)) {
+    console.log(`[AUTH] Rejected invalid login attempt with key: ${cleanPass}`);
     return res.status(401).json({ success: false, error: 'Invalid access key.' });
   }
+
+  const markerMatch = cleanPass.match(/(ALPHA|BRAVO|CHARLIE|DELTA|ECHO)/i);
+  const userMarker = markerMatch ? `[${markerMatch[1].toUpperCase()}]` : `[${cleanPass.slice(0, 10)}]`;
 
   const sessions = cleanExpiredSessions(loadAuthSessions());
   const now = Date.now();
@@ -877,6 +943,7 @@ app.post('/api/auth/login', (req, res) => {
   if (existingHolderToken && clientToken && existingHolderToken === clientToken) {
     sessions[clientToken].expiresAt = now + SESSION_DURATION_MS;
     saveAuthSessions(sessions);
+    console.log(`${userMarker} [AUTH] Session resumed/refreshed (7 days)`);
     return res.json({
       success: true,
       token: clientToken,
@@ -887,6 +954,7 @@ app.post('/api/auth/login', (req, res) => {
 
   // If password is already in use by a different active user
   if (existingHolderToken && existingHolderToken !== clientToken) {
+    console.log(`${userMarker} [AUTH] Key rejected — already in active use by another device`);
     return res.status(403).json({
       success: false,
       error: 'This access key is currently in use by another active user. Please use an unused access key.'
@@ -903,6 +971,7 @@ app.post('/api/auth/login', (req, res) => {
   saveAuthSessions(sessions);
 
   const activeKeys = new Set(Object.values(sessions).map(s => s.password));
+  console.log(`${userMarker} [AUTH] Login successful! New 7-day session token granted. Active users: ${activeKeys.size}/${ALLOWED_PASSWORDS.length}`);
   return res.json({
     success: true,
     token,
@@ -926,10 +995,12 @@ app.post('/api/auth/verify', (req, res) => {
 
 // POST /api/auth/logout — release the access key
 app.post('/api/auth/logout', (req, res) => {
+  const userMarker = getUserMarker(req);
   const { token } = req.body || {};
   if (token) {
     const sessions = loadAuthSessions();
     if (sessions[token]) {
+      console.log(`${userMarker} [AUTH] Logged out and released access key`);
       delete sessions[token];
       saveAuthSessions(sessions);
     }

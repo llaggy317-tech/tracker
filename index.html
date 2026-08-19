@@ -2031,12 +2031,12 @@
         </div>
         <div class="setting-item">
           <label>Concurrency</label>
-          <input type="number" id="concurrency" value="10" min="1" max="10"
+          <input type="number" id="concurrency" value="1" min="1" max="10"
             title="How many consignments to track simultaneously." />
         </div>
         <div class="setting-item">
           <label>Delay (ms)</label>
-          <input type="number" id="delay-ms" value="500" min="0" max="5000" step="50"
+          <input type="number" id="delay-ms" value="6000" min="0" max="60000" step="500"
             title="Pause between each batch." />
         </div>
         <div class="setting-item" style="margin-left:auto;display:flex;align-items:center;gap:8px;">
@@ -2209,13 +2209,24 @@
     // ─── AUTH & 7-DAY EXCLUSIVE SESSION CONTROLLER ────────────────────────────────
     let authClientToken = localStorage.getItem('cii_auth_token') || null;
 
+    function apiFetch(endpoint, options = {}) {
+      const url = endpoint.startsWith('http') ? endpoint : `${API}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+      const headers = {
+        ...(options.headers || {})
+      };
+      if (authClientToken) {
+        headers['x-auth-token'] = authClientToken;
+      }
+      return fetch(url, { ...options, headers });
+    }
+
     async function checkAuthSession() {
       const overlay = document.getElementById('auth-overlay');
       const input = document.getElementById('auth-key-input');
 
       if (authClientToken) {
         try {
-          const r = await fetch(`${API}/api/auth/verify`, {
+          const r = await apiFetch('/api/auth/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: authClientToken })
@@ -2246,7 +2257,7 @@
       const slotsEl = document.getElementById('auth-slots-badge');
       if (!slotsEl) return;
       try {
-        const r = await fetch(`${API}/api/auth/status`);
+        const r = await apiFetch('/api/auth/status');
         const data = await r.json();
         if (data && data.success) {
           slotsEl.textContent = `🟢 ${data.availableSlots} of ${data.totalSlots} access keys available`;
@@ -2279,7 +2290,7 @@
       }
 
       try {
-        const r = await fetch(`${API}/api/auth/login`, {
+        const r = await apiFetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: pass, clientToken: authClientToken })
@@ -2344,14 +2355,9 @@
         selectedEngine = el.value;
         const concEl = document.getElementById('concurrency');
         const delayEl = document.getElementById('delay-ms');
-        if (selectedEngine === 'indiapost') {
-          if (concEl) concEl.value = 10;
-          if (delayEl) delayEl.value = 500;
-        } else {
-          if (concEl) concEl.value = 2;
-          if (delayEl) delayEl.value = 2000;
-        }
-        log(`Engine: ${el.options[el.selectedIndex].text} | Default Concurrency: ${concEl ? concEl.value : '-'}, Delay: ${delayEl ? delayEl.value : '-'}ms`, 'info');
+        if (concEl) concEl.value = 1;
+        if (delayEl) delayEl.value = 6000;
+        log(`Engine: ${el.options[el.selectedIndex].text} | Default Concurrency: 1, Delay: 6000ms`, 'info');
       }
     }
 
@@ -2892,7 +2898,7 @@
       input.value = '';
 
       try {
-        const r = await fetch(`${API}/api/captcha`);
+        const r = await apiFetch('/api/captcha');
         const data = await r.json();
         if (data.success && data.image) {
           activeCaptchaId = data.captchaId;
@@ -2965,7 +2971,7 @@
     async function fetchToken() {
       log('Fetching session token from India Post…', 'info');
       try {
-        const r = await fetch(`${API}/api/token`);
+        const r = await apiFetch('/api/token');
         const data = await r.json();
         if (data.success) {
           log(`Token obtained ✓`, 'ok');
@@ -2990,7 +2996,7 @@
     // ─── TRACKING CORE ────────────────────────────────────────────────────────────
     async function trackOne(articleId) {
       try {
-        const r = await fetch(`${API}/api/track`, {
+        const r = await apiFetch('/api/track', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3071,8 +3077,8 @@
     }
 
     async function runTracking() {
-      const concurrency = Math.max(1, Math.min(10, parseInt(document.getElementById('concurrency').value) || 3));
-      const delayMs = Math.max(0, parseInt(document.getElementById('delay-ms').value) || 300);
+      const concurrency = Math.max(1, Math.min(10, parseInt(document.getElementById('concurrency').value) || 1));
+      const delayMs = Math.max(0, parseInt(document.getElementById('delay-ms').value) || 6000);
 
       isRunning = true;
 
@@ -3562,7 +3568,7 @@
       btn.disabled = true;
 
       try {
-        const r = await fetch(`${API}/api/export-pdf`, {
+        const r = await apiFetch('/api/export-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ results: done, format })
@@ -3603,7 +3609,7 @@
         if (mode === 'clean') {
           await exportClean(done);
         } else {
-          const r = await fetch(`${API}/api/export`, {
+          const r = await apiFetch('/api/export', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ results: done })
@@ -3650,7 +3656,7 @@
         };
       });
 
-      const resp = await fetch(`${API}/api/export-clean`, {
+      const resp = await apiFetch('/api/export-clean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows })
@@ -3712,7 +3718,7 @@
           payload.id = activeHistorySession.id;
         }
 
-        const r = await fetch(`${API}/api/history`, {
+        const r = await apiFetch('/api/history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -3737,7 +3743,7 @@
 
     async function loadHistory(showFeedback = false) {
       try {
-        const r = await fetch(`${API}/api/history`);
+        const r = await apiFetch('/api/history');
         const data = await r.json();
         if (data.success && Array.isArray(data.sessions)) {
           historySessions = data.sessions;
@@ -3834,7 +3840,7 @@
 
     async function loadHistorySession(id) {
       try {
-        const r = await fetch(`${API}/api/history/${encodeURIComponent(id)}`);
+        const r = await apiFetch(`/api/history/${encodeURIComponent(id)}`);
         const data = await r.json();
         if (!data.success || !data.session) {
           alert('Failed to load session: ' + (data.error || 'Unknown error'));
@@ -3899,7 +3905,7 @@
       if (e) e.stopPropagation();
       if (!confirm('Are you sure you want to delete this stored tracking session?')) return;
       try {
-        const r = await fetch(`${API}/api/history/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const r = await apiFetch(`/api/history/${encodeURIComponent(id)}`, { method: 'DELETE' });
         const data = await r.json();
         if (data.success) {
           if (activeHistorySession && activeHistorySession.id === id) {
@@ -3916,7 +3922,7 @@
     async function clearAllHistory() {
       if (!confirm('Are you sure you want to delete ALL stored tracking sessions? This cannot be undone.')) return;
       try {
-        const r = await fetch(`${API}/api/history`, { method: 'DELETE' });
+        const r = await apiFetch('/api/history', { method: 'DELETE' });
         const data = await r.json();
         if (data.success) {
           exitHistoryView();
