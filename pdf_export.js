@@ -177,6 +177,10 @@ function renderListLayout(doc, results, stats) {
     if (deliveredOn) {
       metaText += `  |  Delivered On: ${deliveredOn}`;
     }
+    const w = r && (r.weight_value || r.booking_details_json?.weight_value || r.raw_data_obj?.booking_details?.weight_value);
+    if (w) {
+      metaText += `  |  Weight: ${w}g`;
+    }
     if (r && r.article_type) {
       metaText += `  |  Type: ${r.article_type}`;
     }
@@ -202,15 +206,16 @@ function renderTableLayout(doc, results, stats) {
 
   // Column definitions
   const columns = [
-    { label: '#', x: 36, width: 28, align: 'center' },
-    { label: 'Consignment No.', x: 64, width: 110, align: 'left' },
-    { label: 'Status', x: 174, width: 80, align: 'center' },
-    { label: 'Origin PIN', x: 254, width: 65, align: 'center' },
-    { label: 'Origin Post Office', x: 319, width: 140, align: 'left' },
-    { label: 'Dest PIN', x: 459, width: 65, align: 'center' },
-    { label: 'Destination Post Office', x: 524, width: 145, align: 'left' },
-    { label: 'Booking Date', x: 669, width: 65, align: 'center' },
-    { label: 'Delivered On', x: 734, width: 72, align: 'center' },
+    { label: '#', x: 36, width: 24, align: 'center' },
+    { label: 'Consignment No.', x: 60, width: 105, align: 'left' },
+    { label: 'Status', x: 165, width: 75, align: 'center' },
+    { label: 'Origin PIN', x: 240, width: 60, align: 'center' },
+    { label: 'Origin Post Office', x: 300, width: 130, align: 'left' },
+    { label: 'Dest PIN', x: 430, width: 60, align: 'center' },
+    { label: 'Destination Office', x: 490, width: 135, align: 'left' },
+    { label: 'Weight (g)', x: 625, width: 50, align: 'center' },
+    { label: 'Booked On', x: 675, width: 65, align: 'center' },
+    { label: 'Delivered On', x: 740, width: 66, align: 'center' },
   ];
 
   function drawTableHeader(y) {
@@ -240,6 +245,8 @@ function renderTableLayout(doc, results, stats) {
     const originOffice = (r && r.booking_office_name) || '—';
     const destPin = (r && r.destination_pincode) || '—';
     const destOffice = (r && r.destination_office_name) || '—';
+    const rawW = r && (r.weight_value || r.booking_details_json?.weight_value || r.raw_data_obj?.booking_details?.weight_value);
+    const weightVal = rawW ? `${rawW}` : '—';
     const bookingDate = r && r.booking_date ? formatDate(r.booking_date) : '—';
     const deliveredOn = r && r.delivery_confirmed_on ? formatDate(r.delivery_confirmed_on) : '—';
     const statusColor = getStatusColor(status);
@@ -263,10 +270,11 @@ function renderTableLayout(doc, results, stats) {
     doc.text(originOffice.length > 22 ? originOffice.substring(0, 22) + '…' : originOffice, columns[4].x + 4, currentY + 5, { width: columns[4].width - 4, align: 'left' });
 
     doc.text(destPin, columns[5].x, currentY + 5, { width: columns[5].width, align: 'center' });
-    doc.text(destOffice.length > 23 ? destOffice.substring(0, 23) + '…' : destOffice, columns[6].x + 4, currentY + 5, { width: columns[6].width - 4, align: 'left' });
+    doc.text(destOffice.length > 22 ? destOffice.substring(0, 22) + '…' : destOffice, columns[6].x + 4, currentY + 5, { width: columns[6].width - 4, align: 'left' });
 
-    doc.text(bookingDate, columns[7].x, currentY + 5, { width: columns[7].width, align: 'center' });
-    doc.text(deliveredOn, columns[8].x, currentY + 5, { width: columns[8].width, align: 'center' });
+    doc.text(weightVal, columns[7].x, currentY + 5, { width: columns[7].width, align: 'center' });
+    doc.text(bookingDate, columns[8].x, currentY + 5, { width: columns[8].width, align: 'center' });
+    doc.text(deliveredOn, columns[9].x, currentY + 5, { width: columns[9].width, align: 'center' });
 
     currentY += rowHeight;
   });

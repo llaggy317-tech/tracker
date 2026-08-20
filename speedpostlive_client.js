@@ -135,6 +135,7 @@ class SpeedPostLiveClient {
       booking_pin: consignment.origin_pincode || '',
       destination_office_name: consignment.delivery_location || '',
       destination_pincode: consignment.destination_pincode || '',
+      weight_value: consignment.weight || consignment.weight_value || consignment.article_weight || null,
       delivery_status: currentStatus,
       delivery_confirmed_on: currentStatus.toLowerCase().includes('deliver') ? (latestEvent.tracked_at || '') : '',
       tariff: consignment.tariff || '',

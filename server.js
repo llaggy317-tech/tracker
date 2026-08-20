@@ -468,6 +468,9 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer, userMarker
     booking.destination_office_name || dataObj.destination_office_name || dataObj.destination_office || null;
   const destination_pincode =
     booking.destination_pincode || dataObj.destination_pincode || dataObj.destination_pin || null;
+  const weight_value =
+    booking.weight_value || booking.weight || booking.article_weight ||
+    dataObj.weight_value || dataObj.weight || dataObj.article_weight || null;
 
   return {
     success: true,
@@ -484,6 +487,7 @@ async function trackViaIndiaPost(articleId, token, captchaId, answer, userMarker
     booking_pin,
     destination_office_name,
     destination_pincode,
+    weight_value,
     tariff: booking.tariff || dataObj.tariff || null,
     event_count: trackingList.length,
     delivery_confirmed_to: booking.delivery_confirmed_to || dataObj.delivery_confirmed_to || null,
@@ -681,7 +685,7 @@ app.post('/api/export', (req, res) => {
     destination_office_name: r.destination_office_name || null,
     destination_pincode: r.destination_pincode || null,
     destination_city: r.destination_city || null,
-    weight_value: r.weight_value || null,
+    weight_value: r.weight_value || r.booking_details_json?.weight_value || r.raw_data_obj?.booking_details?.weight_value || null,
     tariff: r.tariff || null,
     cod_amount: r.cod_amount || null,
     source_country: r.source_country || null,
