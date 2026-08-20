@@ -588,6 +588,39 @@
       position: sticky;
       top: 0;
       z-index: 10;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    thead th.sortable {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    thead th.sortable:hover {
+      background: var(--bg3);
+      color: var(--accent);
+    }
+
+    thead th.sortable.sorted-asc,
+    thead th.sortable.sorted-desc {
+      background: #19253d;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent);
+    }
+
+    .sort-icon {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 0.75rem;
+      opacity: 0.45;
+      transition: opacity 0.15s;
+      vertical-align: middle;
+    }
+
+    thead th.sortable:hover .sort-icon {
+      opacity: 0.9;
+      color: var(--accent);
     }
 
     tbody td {
@@ -2535,6 +2568,8 @@
     let currentPage = 1;
     let pageSize = 500;
     let hideInvalid = false;
+    let currentSortCol = null;
+    let currentSortDir = 'asc';
     let selectedEngine = 'indiapost';
 
     // Tracking mode & session history state
@@ -3778,6 +3813,8 @@
       currentIdx = 0;
       completedCount = 0;
       token = null;
+      currentSortCol = null;
+      currentSortDir = 'asc';
       hideSessionAlert();
       exitHistoryView();
       updateProgress();
@@ -3928,6 +3965,97 @@
       `;
     }
 
+    function setTableSort(col) {
+      if (currentSortCol === col) {
+        if (currentSortDir === 'asc') {
+          currentSortDir = 'desc';
+        } else {
+          currentSortCol = null;
+          currentSortDir = 'asc';
+        }
+      } else {
+        currentSortCol = col;
+        currentSortDir = 'asc';
+      }
+      currentPage = 1;
+      renderTable();
+    }
+
+    function clearTableSort() {
+      currentSortCol = null;
+      currentSortDir = 'asc';
+      currentPage = 1;
+      renderTable();
+    }
+
+    function getSortColLabel(col) {
+      const map = {
+        consignment: 'Consignment No.',
+        status: 'Status',
+        type: 'Type',
+        booking_date: 'Booking Date',
+        from: 'From (Office)',
+        origin_pin: 'Origin PIN',
+        dest_office: 'Delivery Post Office',
+        dest_pin: 'Dest PIN',
+        weight: 'Weight',
+        delivered_on: 'Delivered On'
+      };
+      return map[col] || col;
+    }
+
+    function getSortValue(r, col) {
+      if (!r) return '';
+      switch (col) {
+        case 'consignment':
+          return (r.articleId || r.article_number || '').trim();
+        case 'status': {
+          if (r.session_expired) return 'Session Expired';
+          if (!r.success) return 'Failed: ' + (r.api_error || r.error || '');
+          let s = r.delivery_status || 'Not Booked';
+          if (s === 'Booked') s = 'Not Booked';
+          return s;
+        }
+        case 'type':
+          return (r.article_type || '').trim();
+        case 'booking_date': {
+          if (!r.booking_date) return null;
+          const t = new Date(r.booking_date).getTime();
+          return isNaN(t) ? null : t;
+        }
+        case 'from':
+          return (r.booking_office_name || '').trim();
+        case 'origin_pin':
+          return (r.booking_pin || '').trim();
+        case 'dest_office':
+          return (r.destination_office_name || '').trim();
+        case 'dest_pin':
+          return (r.destination_pincode || '').trim();
+        case 'weight': {
+          const w = r.weight_value || r.booking_details_json?.weight_value || r.raw_data_obj?.booking_details?.weight_value;
+          if (w === undefined || w === null || w === '' || w === '—') return null;
+          const num = parseFloat(String(w).replace(/[^0-9.]/g, ''));
+          return isNaN(num) ? null : num;
+        }
+        case 'delivered_on': {
+          if (!r.delivery_confirmed_on) return null;
+          const t = new Date(r.delivery_confirmed_on).getTime();
+          return isNaN(t) ? null : t;
+        }
+        default:
+          return '';
+      }
+    }
+
+    function buildTh(colKey, label) {
+      const isSorted = currentSortCol === colKey;
+      const sortClass = isSorted ? ` sorted-${currentSortDir}` : '';
+      const icon = isSorted ? (currentSortDir === 'asc' ? ' ▲' : ' ▼') : ' <span class="sort-icon">⇅</span>';
+      const nextDir = isSorted ? (currentSortDir === 'asc' ? 'descending' : 'original order') : 'ascending';
+      const tooltip = `Sort by ${label} (${nextDir})`;
+      return `<th class="sortable${sortClass}" onclick="setTableSort('${colKey}')" title="${tooltip}">${label}${icon}</th>`;
+    }
+
     function renderTable() {
       const done = results.filter(Boolean);
       let filtered = done;
@@ -3944,9 +4072,38 @@
         }
       }
 
+      if (currentSortCol) {
+        filtered = [...filtered].sort((a, b) => {
+          const valA = getSortValue(a, currentSortCol);
+          const valB = getSortValue(b, currentSortCol);
+
+          const emptyA = valA === null || valA === undefined || valA === '';
+          const emptyB = valB === null || valB === undefined || valB === '';
+          if (emptyA && emptyB) return 0;
+          if (emptyA) return 1;
+          if (emptyB) return -1;
+
+          let comp = 0;
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            comp = valA - valB;
+          } else {
+            comp = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+          }
+
+          return currentSortDir === 'asc' ? comp : -comp;
+        });
+      }
+
       const hiddenCount = hideInvalid ? done.filter(isInvalidResult).length : 0;
       const hiddenNote = hideInvalid && hiddenCount > 0 ? ` (${hiddenCount} invalid hidden)` : '';
-      document.getElementById('results-count').textContent = `Results — ${filtered.length.toLocaleString()} / ${done.length.toLocaleString()} records${hiddenNote}`;
+      const countEl = document.getElementById('results-count');
+      if (countEl) {
+        if (currentSortCol) {
+          countEl.innerHTML = `Results — ${filtered.length.toLocaleString()} / ${done.length.toLocaleString()} records${hiddenNote} <span style="font-size:0.75rem;color:var(--accent);font-weight:600;margin-left:6px;">[Sorted: ${getSortColLabel(currentSortCol)} ${currentSortDir === 'asc' ? '▲' : '▼'}]</span> <button class="btn btn-ghost" onclick="clearTableSort()" style="font-size:0.7rem;padding:2px 7px;margin-left:4px;vertical-align:middle;" title="Reset sorting to original order">✕ Clear Sort</button>`;
+        } else {
+          countEl.textContent = `Results — ${filtered.length.toLocaleString()} / ${done.length.toLocaleString()} records${hiddenNote}`;
+        }
+      }
 
       const wrap = document.getElementById('table-wrap');
       if (filtered.length === 0) {
@@ -3970,16 +4127,16 @@
         <table>
           <thead>
             <tr>
-              <th>Consignment No.</th>
-              <th>Status</th>
-              <th>Type</th>
-              <th>Booking Date</th>
-              <th>From (Office)</th>
-              <th>Origin PIN</th>
-              <th>Delivery Post Office</th>
-              <th>Dest PIN</th>
-              <th>Weight (g)</th>
-              <th>Delivered On</th>
+              ${buildTh('consignment', 'Consignment No.')}
+              ${buildTh('status', 'Status')}
+              ${buildTh('type', 'Type')}
+              ${buildTh('booking_date', 'Booking Date')}
+              ${buildTh('from', 'From (Office)')}
+              ${buildTh('origin_pin', 'Origin PIN')}
+              ${buildTh('dest_office', 'Delivery Post Office')}
+              ${buildTh('dest_pin', 'Dest PIN')}
+              ${buildTh('weight', 'Weight (g)')}
+              ${buildTh('delivered_on', 'Delivered On')}
             </tr>
           </thead>
           <tbody>
