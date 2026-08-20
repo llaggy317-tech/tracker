@@ -110,17 +110,25 @@ function getUserMarker(req) {
                   req?.body?.clientToken || 
                   req?.query?.token;
     if (!token) return '[ANON]';
+
     const sessions = loadAuthSessions();
     const session = sessions[token];
-    if (!session || !session.password) return '[GUEST]';
-
-    const pass = String(session.password).trim().toUpperCase();
-    const match = pass.match(/(ALPHA|BRAVO|CHARLIE|DELTA|ECHO)/i);
-    if (match) {
-      return `[${match[1].toUpperCase()}]`;
+    if (session && session.password) {
+      const pass = String(session.password).trim().toUpperCase();
+      const match = pass.match(/(ALPHA|BRAVO|CHARLIE|DELTA|ECHO)/i);
+      if (match) return `[${match[1].toUpperCase()}]`;
+      const clean = pass.replace(/^CII[-_]?/i, '');
+      return `[${clean.slice(0, 12)}]`;
     }
-    const clean = pass.replace(/^CII[-_]?/i, '');
-    return `[${clean.slice(0, 12)}]`;
+
+    // If server restarted / container redeployed, check token for embedded codename (e.g. 7f..._DELTA)
+    const tokUpper = String(token).toUpperCase();
+    const tokenMatch = tokUpper.match(/(ALPHA|BRAVO|CHARLIE|DELTA|ECHO)/);
+    if (tokenMatch) {
+      return `[${tokenMatch[1]}]`;
+    }
+
+    return '[GUEST]';
   } catch (_) {
     return '[USER]';
   }
@@ -967,7 +975,8 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   // Claim the password for a new token
-  const token = crypto.randomBytes(24).toString('hex');
+  const codename = markerMatch ? markerMatch[1].toUpperCase() : cleanPass.replace(/^CII[-_]?/i, '').slice(0, 8);
+  const token = `${crypto.randomBytes(16).toString('hex')}_${codename}`;
   sessions[token] = {
     password: cleanPass,
     claimedAt: now,
