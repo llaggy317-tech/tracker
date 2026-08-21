@@ -1998,13 +1998,13 @@
     <div class="seq-card" id="mode-card-seq">
       <div class="seq-card-header">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div class="control-title" style="margin-bottom:0;">🔢 Auto-Generate Next Consignments</div>
+          <div class="control-title" style="margin-bottom:0;" id="seq-title-text">🔢 Auto-Generate Next Consignments</div>
           <span class="seq-badge">UPU S10 Modulo 11 Standard</span>
         </div>
         <span class="seq-status-pill valid" id="seq-status-badge">✓ Valid Format</span>
       </div>
 
-      <div class="seq-grid">
+      <div class="seq-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
         <div class="seq-field-group">
           <div class="seq-label">
             <span>Base / Starting Consignment Number</span>
@@ -2029,7 +2029,25 @@
 
         <div class="seq-field-group">
           <div class="seq-label">
-            <span>Next Consignments Count</span>
+            <span>Sequence Direction</span>
+            <span style="font-size:0.72rem;color:var(--text3);">Forward / Backward</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;height:42px;">
+            <button type="button" id="seq-dir-fwd" class="btn btn-primary" style="flex:1;height:100%;font-size:0.82rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="setSeqDirection('forward')">
+              ➡️ Forward (+)
+            </button>
+            <button type="button" id="seq-dir-bwd" class="btn btn-ghost" style="flex:1;height:100%;font-size:0.82rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="setSeqDirection('backward')">
+              ⬅️ Backward (-)
+            </button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;" id="seq-dir-hint">
+            Generates forward / next serials (+1, +2...)
+          </div>
+        </div>
+
+        <div class="seq-field-group">
+          <div class="seq-label">
+            <span>Consignments Count</span>
             <span style="font-size:0.72rem;color:var(--text3);">How many to generate</span>
           </div>
           <div class="seq-input-wrap">
@@ -2063,6 +2081,7 @@
         </div>
         <div class="seq-preview-tags">
           <div class="seq-preview-tag" id="seq-tag-count">📦 0 items</div>
+          <div class="seq-preview-tag" id="seq-tag-dir">🧭 Direction: Forward (+)</div>
           <div class="seq-preview-tag" id="seq-tag-prefix">🏷 Prefix: —</div>
           <div class="seq-preview-tag" id="seq-tag-suffix">🌍 Country: —</div>
           <div class="seq-preview-tag" id="seq-tag-serial">🔢 Base Serial: —</div>
@@ -2090,13 +2109,13 @@
     <div class="seq-card" id="mode-card-step" style="display: none;">
       <div class="seq-card-header">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div class="control-title" style="margin-bottom:0;">📐 Step / Interval Consignment Sampler</div>
+          <div class="control-title" style="margin-bottom:0;" id="step-title-text">📐 Step / Interval Consignment Sampler</div>
           <span class="seq-badge">UPU S10 Step Interval Standard</span>
         </div>
         <span class="seq-status-pill" id="step-status-badge">—</span>
       </div>
 
-      <div class="seq-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+      <div class="seq-grid" style="grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));">
         <div class="seq-field-group">
           <div class="seq-label">
             <span>Base / Starting Consignment Number</span>
@@ -2115,7 +2134,25 @@
             />
           </div>
           <div style="font-size:0.72rem;color:var(--text3);margin-top:2px;">
-            Checks entered consignment (+0), then 51st (+50), 101st (+100) or 101st (+100), 201st (+200) with recalculated UPU S10 check digits
+            Checks entered consignment (Base), then sampled intervals with recalculated UPU S10 check digits
+          </div>
+        </div>
+
+        <div class="seq-field-group">
+          <div class="seq-label">
+            <span>Sampling Direction</span>
+            <span style="font-size:0.72rem;color:var(--text3);">Forward / Backward</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;height:42px;">
+            <button type="button" id="step-dir-fwd" class="btn btn-primary" style="flex:1;height:100%;font-size:0.82rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="setStepDirection('forward')">
+              ➡️ Forward (+)
+            </button>
+            <button type="button" id="step-dir-bwd" class="btn btn-ghost" style="flex:1;height:100%;font-size:0.82rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="setStepDirection('backward')">
+              ⬅️ Backward (-)
+            </button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text3);margin-top:4px;" id="step-dir-hint">
+            Samples forward at step intervals (Base, +50, +100...)
           </div>
         </div>
 
@@ -2181,6 +2218,7 @@
         <div class="seq-preview-tags">
           <div class="seq-preview-tag" id="step-tag-count">📦 0 samples</div>
           <div class="seq-preview-tag" id="step-tag-step">📏 Step: Every +50</div>
+          <div class="seq-preview-tag" id="step-tag-dir">🧭 Direction: Forward (+)</div>
           <div class="seq-preview-tag" id="step-tag-prefix">🏷 Prefix: —</div>
           <div class="seq-preview-tag" id="step-tag-suffix">🌍 Country: —</div>
           <div class="seq-preview-tag" id="step-tag-serial">🔢 Base Serial: —</div>
@@ -2680,7 +2718,9 @@
       };
     }
 
-    function generateNextUpuS10Sequence(baseCode, count = 100) {
+    let currentSeqDirection = 'forward'; // 'forward' | 'backward'
+
+    function generateNextUpuS10Sequence(baseCode, count = 100, direction = 'forward') {
       const parsed = parseUpuS10(baseCode);
       if (!parsed) return null;
       const numCount = parseInt(count, 10);
@@ -2689,7 +2729,8 @@
 
       const list = [];
       for (let i = 1; i <= safeCount; i++) {
-        const nextSerial = parsed.serial + i;
+        const nextSerial = direction === 'backward' ? (parsed.serial - i) : (parsed.serial + i);
+        if (nextSerial < 0 || nextSerial > 99999999) break;
         const nextSerialStr = String(nextSerial).padStart(8, '0');
         const { checkDigit, sum, remainder } = calcUpuS10CheckDigit(nextSerialStr);
         const code = parsed.prefix + nextSerialStr + checkDigit + parsed.suffix;
@@ -2699,15 +2740,43 @@
           serialStr: nextSerialStr,
           checkDigit,
           sum,
-          remainder
+          remainder,
+          direction
         });
       }
       return {
         base: parsed,
+        direction,
         count: list.length,
         items: list,
         codes: list.map(item => item.code)
       };
+    }
+
+    function setSeqDirection(dir) {
+      currentSeqDirection = dir === 'backward' ? 'backward' : 'forward';
+      const fwdBtn = document.getElementById('seq-dir-fwd');
+      const bwdBtn = document.getElementById('seq-dir-bwd');
+      const titleEl = document.getElementById('seq-title-text');
+      const hintEl = document.getElementById('seq-dir-hint');
+      if (fwdBtn && bwdBtn) {
+        if (currentSeqDirection === 'backward') {
+          fwdBtn.classList.remove('btn-primary');
+          fwdBtn.classList.add('btn-ghost');
+          bwdBtn.classList.remove('btn-ghost');
+          bwdBtn.classList.add('btn-primary');
+          if (titleEl) titleEl.textContent = '🔢 Auto-Generate Previous Consignments';
+          if (hintEl) hintEl.textContent = 'Generates backward / previous serials (-1, -2...)';
+        } else {
+          fwdBtn.classList.add('btn-primary');
+          fwdBtn.classList.remove('btn-ghost');
+          bwdBtn.classList.add('btn-ghost');
+          bwdBtn.classList.remove('btn-primary');
+          if (titleEl) titleEl.textContent = '🔢 Auto-Generate Next Consignments';
+          if (hintEl) hintEl.textContent = 'Generates forward / next serials (+1, +2...)';
+        }
+      }
+      onSeqInputChange();
     }
 
     function onSeqInputChange() {
@@ -2716,6 +2785,7 @@
       const statusBadge = document.getElementById('seq-status-badge');
       const previewRange = document.getElementById('seq-preview-range');
       const tagCount = document.getElementById('seq-tag-count');
+      const tagDir = document.getElementById('seq-tag-dir');
       const tagPrefix = document.getElementById('seq-tag-prefix');
       const tagSuffix = document.getElementById('seq-tag-suffix');
       const tagSerial = document.getElementById('seq-tag-serial');
@@ -2729,7 +2799,7 @@
       if (isNaN(count) || count < 1) count = 1;
       if (count > 5000) count = 5000;
 
-      const seqData = generateNextUpuS10Sequence(val, count);
+      const seqData = generateNextUpuS10Sequence(val, count, currentSeqDirection);
 
       if (seqData && seqData.items.length > 0) {
         currentGeneratedSequence = seqData.items;
@@ -2740,6 +2810,7 @@
         const last = seqData.items[seqData.items.length - 1].code;
         previewRange.textContent = seqData.items.length > 1 ? `${first} … ${last}` : first;
         tagCount.textContent = `📦 ${seqData.items.length} items`;
+        if (tagDir) tagDir.textContent = currentSeqDirection === 'backward' ? '🧭 Direction: Backward (-)' : '🧭 Direction: Forward (+)';
         tagPrefix.textContent = `🏷 Prefix: ${seqData.base.prefix}`;
         tagSuffix.textContent = `🌍 Country: ${seqData.base.suffix}`;
         tagSerial.textContent = `🔢 Base Serial: ${seqData.base.serialStr}`;
@@ -2756,6 +2827,7 @@
 
         previewRange.textContent = hasContent ? 'Please enter a valid 13-char S10 code (e.g. ED117596315IN)' : '—';
         tagCount.textContent = `📦 0 items`;
+        if (tagDir) tagDir.textContent = currentSeqDirection === 'backward' ? '🧭 Direction: Backward (-)' : '🧭 Direction: Forward (+)';
         tagPrefix.textContent = `🏷 Prefix: —`;
         tagSuffix.textContent = `🌍 Country: —`;
         tagSerial.textContent = `🔢 Base Serial: —`;
@@ -2792,7 +2864,8 @@
       currentTrackType = 'sequence';
       const startCode = currentGeneratedSequence[0].code;
       const endCode = currentGeneratedSequence[currentGeneratedSequence.length - 1].code;
-      currentRangeDetails = ids.length > 1 ? `${startCode} … ${endCode} (${ids.length} items)` : startCode;
+      const dirLabel = currentSeqDirection === 'backward' ? 'Backward' : 'Forward';
+      currentRangeDetails = ids.length > 1 ? `${startCode} … ${endCode} (${ids.length} items, ${dirLabel})` : startCode;
       exitHistoryView();
       startTrackingIds(ids);
     }
@@ -2838,7 +2911,11 @@
       }
       const modal = document.getElementById('seq-modal');
       const countBadge = document.getElementById('seq-modal-count-badge');
+      const subtitle = document.getElementById('seq-modal-subtitle');
       if (countBadge) countBadge.textContent = `${currentGeneratedSequence.length} items`;
+      if (subtitle) {
+        subtitle.textContent = `${currentSeqDirection === 'backward' ? 'Backward Sequence (-)' : 'Forward Sequence (+)'} · Weighted Modulo-11 Calculated Check Digits`;
+      }
       renderSeqModalTable(currentGeneratedSequence);
       if (modal) modal.classList.add('show');
     }
@@ -2906,7 +2983,7 @@
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `UPU_S10_Sequence_${currentGeneratedSequence.length}_items.csv`);
+      link.setAttribute('download', `UPU_S10_Sequence_${currentSeqDirection}_${currentGeneratedSequence.length}_items.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2919,7 +2996,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `UPU_S10_Sequence_${currentGeneratedSequence.length}_items.txt`);
+      link.setAttribute('download', `UPU_S10_Sequence_${currentSeqDirection}_${currentGeneratedSequence.length}_items.txt`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2931,9 +3008,10 @@
     }
 
     // ─── UPU S10 INTERVAL / STEP SAMPLER ──────────────────────────────────────────
+    let currentStepDirection = 'forward'; // 'forward' | 'backward'
     let currentGeneratedStepSequence = [];
 
-    function generateStepUpuS10Sequence(baseCode, interval = 50, count = 20) {
+    function generateStepUpuS10Sequence(baseCode, interval = 50, count = 20, direction = 'forward') {
       const parsed = parseUpuS10(baseCode);
       if (!parsed) return null;
       const step = parseInt(interval, 10);
@@ -2944,28 +3022,62 @@
       const list = [];
       for (let i = 0; i < safeCount; i++) {
         const offset = i * step;
-        const serial = parsed.serial + offset;
+        const serial = direction === 'backward' ? (parsed.serial - offset) : (parsed.serial + offset);
+        if (serial < 0 || serial > 99999999) break;
         const serialStr = String(serial).padStart(8, '0');
         const { checkDigit, sum, remainder } = calcUpuS10CheckDigit(serialStr);
         const code = parsed.prefix + serialStr + checkDigit + parsed.suffix;
+        let offsetLabel = '';
+        if (offset === 0) {
+          offsetLabel = '0 (Base)';
+        } else if (direction === 'backward') {
+          offsetLabel = `-${offset}`;
+        } else {
+          offsetLabel = `+${offset}`;
+        }
         list.push({
           index: i + 1,
-          offset: offset === 0 ? '+0 (Base)' : `+${offset}`,
-          offsetNum: offset,
+          offset: offsetLabel,
+          offsetNum: direction === 'backward' ? -offset : offset,
           code,
           serialStr,
           checkDigit,
           sum,
-          remainder
+          remainder,
+          direction
         });
       }
       return {
         base: parsed,
         step,
+        direction,
         count: list.length,
         items: list,
         codes: list.map(item => item.code)
       };
+    }
+
+    function setStepDirection(dir) {
+      currentStepDirection = dir === 'backward' ? 'backward' : 'forward';
+      const fwdBtn = document.getElementById('step-dir-fwd');
+      const bwdBtn = document.getElementById('step-dir-bwd');
+      const hintEl = document.getElementById('step-dir-hint');
+      if (fwdBtn && bwdBtn) {
+        if (currentStepDirection === 'backward') {
+          fwdBtn.classList.remove('btn-primary');
+          fwdBtn.classList.add('btn-ghost');
+          bwdBtn.classList.remove('btn-ghost');
+          bwdBtn.classList.add('btn-primary');
+          if (hintEl) hintEl.textContent = 'Samples backward at step intervals (Base, -50, -100...)';
+        } else {
+          fwdBtn.classList.add('btn-primary');
+          fwdBtn.classList.remove('btn-ghost');
+          bwdBtn.classList.add('btn-ghost');
+          bwdBtn.classList.remove('btn-primary');
+          if (hintEl) hintEl.textContent = 'Samples forward at step intervals (Base, +50, +100...)';
+        }
+      }
+      onStepInputChange();
     }
 
     function onStepInputChange() {
@@ -2976,6 +3088,7 @@
       const previewRange = document.getElementById('step-preview-range');
       const tagCount = document.getElementById('step-tag-count');
       const tagStep = document.getElementById('step-tag-step');
+      const tagDir = document.getElementById('step-tag-dir');
       const tagPrefix = document.getElementById('step-tag-prefix');
       const tagSuffix = document.getElementById('step-tag-suffix');
       const tagSerial = document.getElementById('step-tag-serial');
@@ -2992,7 +3105,7 @@
       if (isNaN(count) || count < 1) count = 1;
       if (count > 1000) count = 1000;
 
-      const stepData = generateStepUpuS10Sequence(val, step, count);
+      const stepData = generateStepUpuS10Sequence(val, step, count, currentStepDirection);
 
       if (stepData && stepData.items.length > 0) {
         currentGeneratedStepSequence = stepData.items;
@@ -3002,7 +3115,8 @@
         const samplePreview = stepData.items.slice(0, 4).map(s => `${s.code} (${s.offset})`).join(', ') + (stepData.items.length > 4 ? ` … ${stepData.items[stepData.items.length - 1].code} (${stepData.items[stepData.items.length - 1].offset})` : '');
         previewRange.textContent = samplePreview;
         tagCount.textContent = `📦 ${stepData.items.length} samples`;
-        tagStep.textContent = `📏 Step: Every +${step}`;
+        tagStep.textContent = `📏 Step: Every ${currentStepDirection === 'backward' ? '-' : '+'}${step}`;
+        if (tagDir) tagDir.textContent = currentStepDirection === 'backward' ? '🧭 Direction: Backward (-)' : '🧭 Direction: Forward (+)';
         tagPrefix.textContent = `🏷 Prefix: ${stepData.base.prefix}`;
         tagSuffix.textContent = `🌍 Country: ${stepData.base.suffix}`;
         tagSerial.textContent = `🔢 Base Serial: ${stepData.base.serialStr}`;
@@ -3019,7 +3133,8 @@
 
         previewRange.textContent = hasContent ? 'Please enter a valid 13-char S10 code (e.g. ED141926585IN)' : '—';
         tagCount.textContent = `📦 0 samples`;
-        tagStep.textContent = `📏 Step: Every +${step}`;
+        tagStep.textContent = `📏 Step: Every ${currentStepDirection === 'backward' ? '-' : '+'}${step}`;
+        if (tagDir) tagDir.textContent = currentStepDirection === 'backward' ? '🧭 Direction: Backward (-)' : '🧭 Direction: Forward (+)';
         tagPrefix.textContent = `🏷 Prefix: —`;
         tagSuffix.textContent = `🌍 Country: —`;
         tagSerial.textContent = `🔢 Base Serial: —`;
@@ -3064,7 +3179,9 @@
       currentTrackType = 'step_interval';
       const first = currentGeneratedStepSequence[0].code;
       const last = currentGeneratedStepSequence[currentGeneratedStepSequence.length - 1].code;
-      currentRangeDetails = ids.length > 1 ? `${first} … ${last} (${ids.length} samples, Step: +${document.getElementById('step-interval-input')?.value || 50})` : first;
+      const stepVal = document.getElementById('step-interval-input')?.value || 50;
+      const stepSign = currentStepDirection === 'backward' ? '-' : '+';
+      currentRangeDetails = ids.length > 1 ? `${first} … ${last} (${ids.length} samples, Step: ${stepSign}${stepVal})` : first;
       exitHistoryView();
       startTrackingIds(ids);
     }
@@ -3091,7 +3208,13 @@
       }
       const modal = document.getElementById('step-modal');
       const countBadge = document.getElementById('step-modal-count-badge');
+      const subtitle = document.getElementById('step-modal-subtitle');
       if (countBadge) countBadge.textContent = `${currentGeneratedStepSequence.length} samples`;
+      if (subtitle) {
+        const stepVal = document.getElementById('step-interval-input')?.value || 50;
+        const stepSign = currentStepDirection === 'backward' ? '-' : '+';
+        subtitle.textContent = `Step Interval (${currentStepDirection === 'backward' ? 'Backward' : 'Forward'}, Step: ${stepSign}${stepVal}) · Modulo-11 Calculated Numbers`;
+      }
       renderStepModalTable(currentGeneratedStepSequence);
       if (modal) modal.classList.add('show');
     }
@@ -3115,7 +3238,7 @@
       tbody.innerHTML = items.map(item => `
         <tr>
           <td style="color:var(--text3);">${item.index}</td>
-          <td><span class="badge" style="background:rgba(56,189,248,0.15);color:var(--cyan);">${item.offset}</span></td>
+          <td><span class="badge" style="background:${item.offsetNum < 0 ? 'rgba(244,63,94,0.15);color:var(--red)' : item.offsetNum === 0 ? 'rgba(79,142,247,0.15);color:var(--accent)' : 'rgba(56,189,248,0.15);color:var(--cyan)'};">${item.offset}</span></td>
           <td><strong style="color:var(--accent);">${item.code}</strong></td>
           <td>${item.serialStr}</td>
           <td><span class="badge" style="background:rgba(34,197,94,0.15);color:var(--green);font-weight:700;">${item.checkDigit}</span></td>
@@ -3161,7 +3284,7 @@
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `UPU_S10_Step_Samples_${currentGeneratedStepSequence.length}_items.csv`);
+      link.setAttribute('download', `UPU_S10_Step_Samples_${currentStepDirection}_${currentGeneratedStepSequence.length}_items.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -3174,7 +3297,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `UPU_S10_Step_Samples_${currentGeneratedStepSequence.length}_items.txt`);
+      link.setAttribute('download', `UPU_S10_Step_Samples_${currentStepDirection}_${currentGeneratedStepSequence.length}_items.txt`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
